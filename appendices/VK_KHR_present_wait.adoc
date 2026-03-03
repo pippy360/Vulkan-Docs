@@ -51,28 +51,21 @@ Yes.
 A new extension, VK_KHR_present_id, should be created to provide a shared
 structure for presentation identifiers.
 
-4) What happens when presentations complete out of order wrt calls to
-vkQueuePresent? This could happen if the semaphores for the presentations
-were ready out of order.
+4) How should the implementation handle `presentId` ordering and "very old" IDs?
 
-*OPTION A*: Require that when a PresentId is set that the driver ensure that
-images are always presented in the order of calls to vkQueuePresent.
+*RESOLVED*
 
-*OPTION B*: Finish both waits when the earliest present completes.
-This will complete the later present wait earlier than the actual
-presentation.
-This should be the easiest to implement as the driver need only track the
-largest present ID completed.
-This is also the 'natural' consequence of interpreting the existing
-vkWaitForPresentKHR specification.
+Because `presentId` values are provided by the application and are not required to be monotonic, the implementation cannot rely on "less than or equal to" logic to determine completion.
 
-*OPTION C*: Finish both waits when both have completed.
-This will complete the earlier presentation later than the actual
-presentation time.
-This is allowed by the current specification as there is no precise timing
-requirement for when the presentId value is updated.
-This requires slightly more complexity in the driver as it will need to
-track all outstanding presentId values.
+The implementation **should** maintain a record of all `presentId` values currently in-flight (i.e., those that have been queued via `vkQueuePresentKHR` but have not yet been retired by the presentation engine).
+
+* If a `vkWaitForPresent2KHR` call references a `presentId` that is currently in-flight, the call must block until that specific presentation completes or the timeout expires.
+
+* If the `presentId` is not currently in-flight, the implementation must return `VK_SUCCESS` immediately.
+
+> [!NOTE]
+> This behavior implies that both "already presented" IDs and "random/never-existed" IDs result in an immediate `VK_SUCCESS`. This avoids the requirement for drivers to maintain an exhaustive, ever-growing history of all previously presented IDs.
+> 
 
 === Examples
 
